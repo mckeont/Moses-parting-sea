@@ -1,0 +1,155 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+```{r}
+library(ggplot2)
+library(png)
+library(grid)
+library(dplyr)
+library(gganimate)
+library(transformr)
+library(magick)
+``` 
+
+```{r}
+img <- image_read("C:/Users/tmckeon/OneDrive/Desktop/moses.png")
+img_trans <- image_transparent(img, color = "white", fuzz = 20)
+image_write(img_trans, "moses_transparent.png")
+moses_img <- readPNG("moses_transparent.png")
+
+
+df_sine <- data.frame(
+  x = seq(-10, 10, 0.1)
+) |> mutate(
+  sea_top = sin(x) + 5.5,
+  sea_bot = 10 - sin(x) - 5.5
+)
+
+p1 <- ggplot(df_sine, aes(x = x)) +
+  geom_line(aes(y = sea_top), color = "blue", linewidth = 1.5) +
+  geom_line(aes(y = sea_bot), color = "blue", linewidth = 1.5) +
+  annotation_custom(rasterGrob(moses_img), xmin = -1, xmax = 1, ymin = 4, ymax = 7.3) +
+  theme_void() +
+  coord_cartesian(ylim = c(0, 10)) +
+  ggtitle("Moses in the Sine Sea") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+p1
+```
+
+```{r}
+df_robe <- data.frame(
+  x = c(-0.4, 0.4, 0),
+  y = c(5, 5, 4.2)
+)
+
+df_moses <- data.frame(
+  x = c(0, 0, -0.6, 0.6, 0.8),
+  xend = c(0, 0, 0, 0, 0.8),
+  y = c(6.4, 6.0, 5.7, 5.7, 6.4),
+  yend = c(6.0, 5.0, 5.7, 5.7, 4.2)
+)
+
+plot_moses_base <- function(sea_df, title) {
+  ggplot() +
+    geom_line(data = sea_df, aes(x = x, y = sea_top), color = "deepskyblue", size = 2) +
+    geom_line(data = sea_df, aes(x = x, y = sea_bot), color = "deepskyblue", size = 2) +
+    geom_segment(data = df_moses, aes(x = x, y = y, xend = xend, yend = yend), size = 1.5) +
+    geom_point(aes(x = 0, y = 6.4), size = 5, shape = 21, fill = "black") +
+    geom_polygon(data = df_robe, aes(x = x, y = y), fill = "gray20", alpha = 0.6) +
+    geom_text(aes(x = 0.8, y = 6.6), label = "✨", size = 6, color = "gold") +
+    theme_void() + coord_cartesian(ylim = c(0, 10)) +
+    ggtitle(title) +
+    theme(plot.title = element_text(hjust = 0.5))
+}
+
+df_sine2 <- df_sine
+p2 <- plot_moses_base(df_sine2, " Stick Figure Moses parting the Sine Wave")
+
+p2
+```
+
+```{r}
+x <- seq(-10, 10, 0.1)
+noise <- runif(length(x), -0.3, 0.3)
+df_foam <- data.frame(
+  x = x,
+  sea_top = sin(x * 1.5) * 1.5 + 6 + noise,
+  sea_bot = -sin(x * 1.5) * 1.5 + 4 + noise
+)
+p3 <- plot_moses_base(df_foam, "Moses - Foamy CEET Sea")
+p3
+```
+
+```{r}
+gaussian_wave <- dnorm(x, mean = 0, sd = 1) * 70
+df_gauss <- data.frame(
+  x = x,
+  sea_top = 6 + gaussian_wave,
+  sea_bot = 4 - gaussian_wave
+)
+p4 <- plot_moses_base(df_gauss, "Moses - Towering Sea")
+p4
+```
+
+```{r}
+df_layer <- data.frame(
+  x = x,
+  sea_top = sin(x * 1.2) + 6,
+  sea_bot = -sin(x * 1.2) + 4
+)
+p5 <- plot_moses_base(df_layer, "Moses - Looking for Rocky-- woof woof")
+p5
+
+```
+
+```{r}
+frames <- 30
+sea_anim <- expand.grid(x = x, frame = 1:frames) %>%
+  mutate(
+    wave_shift = sin(2 * pi * frame / frames),
+    sea_top = sin(x * 1.2 + wave_shift) * 1.5 + 6,
+    sea_bot = -sin(x * 1.2 + wave_shift) * 1.5 + 4
+  )
+
+moses_anim <- data.frame(
+  frame = rep(1:frames, each = 5),
+  part = rep(c("head", "body", "left_arm", "right_arm", "staff"), times = frames),
+  x = rep(c(0, 0, -0.6, 0.6, 0.8), times = frames),
+  xend = rep(c(0, 0, 0, 0, 0.8), times = frames),
+  y = c(
+    rep(6.4, frames),  # head
+    rep(6.0, frames),  # body start
+    seq(5.0, 5.7, length.out = frames),  # left arm raising
+    seq(5.0, 5.7, length.out = frames),  # right arm raising
+    seq(5.5, 6.4, length.out = frames)   # staff rising
+  ),
+  yend = c(
+    rep(6.0, frames),  # head to neck
+    rep(5.0, frames),  # body end
+    seq(5.0, 5.7, length.out = frames),
+    seq(5.0, 5.7, length.out = frames),
+    seq(4.0, 4.2, length.out = frames)
+  )
+)
+
+p_anim <- ggplot() +
+  geom_line(data = sea_anim, aes(x = x, y = sea_top, group = frame), color = "deepskyblue", size = 2) +
+  geom_line(data = sea_anim, aes(x = x, y = sea_bot, group = frame), color = "deepskyblue", size = 2) +
+  geom_segment(data = moses_anim, aes(x = x, y = y, xend = xend, yend = yend, group = interaction(part, frame)), size = 1.5) +
+  geom_point(aes(x = 0, y = 6.4), size = 5, shape = 21, fill = "black") +
+  geom_polygon(data = df_robe, aes(x = x, y = y), fill = "gray20", alpha = 0.6) +
+  geom_text(aes(x = 0.8, y = 6.6), label = "✨", size = 6, color = "gold") +
+  coord_cartesian(ylim = c(0, 10)) +
+  theme_void() +
+  ggtitle("Moses Animates the Sea") +
+  theme(plot.title = element_text(hjust = 0.5, size = 16)) +
+  transition_states(frame, transition_length = 2, state_length = 1, wrap = TRUE) +
+  ease_aes("sine-in-out")
+
+# Render and save animation
+animate(p_anim, width = 800, height = 500, fps = 15, duration = 4, renderer = gifski_renderer("moses_animation.gif"))
+```
+
